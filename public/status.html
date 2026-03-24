@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <script src="https://p.trellocdn.com/power-up.min.js"></script>
+</head>
+<body>
+
+<h3 id="text">Loading...</h3>
+
+<script>
+var t = window.TrelloPowerUp.iframe();
+
+t.render(function() {
+  t.card('dateLastActivity').then(function(card) {
+    const days = Math.floor((new Date() - new Date(card.dateLastActivity)) / 86400000);
+    document.getElementById('text').innerText = `Inactive for ${days} days`;
+  });
+});
+</script>
+
+</body>
+</html>
