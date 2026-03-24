@@ -7,7 +7,7 @@ function calculateDays(dateString) {
   return Math.floor(diffTime / (1000 * 60 * 60 * 24));
 }
 
-// The functional popup menu that actually saves/removes data
+// The functional popup menu
 const showSettingsMenu = function(t) {
   return t.popup({
     title: 'Card Aging Settings',
@@ -15,71 +15,91 @@ const showSettingsMenu = function(t) {
       {
         text: 'Hide Badge / Disable',
         callback: function(t) {
-          // Saves a hidden flag to Trello's database for this card
-          return t.set('card', 'shared', 'badgeHidden', true)
-            .then(() => t.closePopup());
+          return t.set('card', 'shared', 'badgeHidden', true).then(() => t.closePopup());
         }
       },
       {
         text: 'Reset Card age to 0',
         callback: function(t) {
-          // Overrides the start date with right now
-          return t.set('card', 'shared', 'customStartDate', new Date().toISOString())
-            .then(() => t.closePopup());
+          return t.set('card', 'shared', 'customStartDate', new Date().toISOString()).then(() => t.closePopup());
         }
       },
       {
-        text: 'Set to last Updated',
+        text: 'Set to last Updated (Default)',
         callback: function(t) {
-          // Deletes the custom override, falling back to Trello's default activity date
-          return t.remove('card', 'shared', 'customStartDate')
-            .then(() => t.closePopup());
+          return t.remove('card', 'shared', 'customStartDate').then(() => t.closePopup());
         }
       },
       {
         text: 'Select Age starting date',
         callback: function(t) {
-          // Opens a custom UI to pick a specific date
-          return t.popup({
-            title: 'Select Date',
-            url: '/date-picker.html', // Ensure you create this file in your Vite public folder
-            height: 250
-          });
+          return t.popup({ title: 'Select Date', url: './date-picker.html', height: 250 });
         }
       }
     ]
   });
 };
 
-// Power-Up Initialization
+// --- POWER-UP INITIALIZATION ---
 window.TrelloPowerUp.initialize({
-  'card-detail-badges': function (t, opts) {
-    // Fetch both the Trello card data AND our custom saved data at the same time
+
+  // 1. FRONT OF CARD BADGES (The visual colored indicator on the board)
+  'card-badges': function(t, opts) {
     return Promise.all([
       t.card('dateLastActivity'),
       t.get('card', 'shared')
     ]).then(function([card, data]) {
       
-      // 1. If the user clicked "Hide Badge", return an empty array to remove it from the UI
-      if (data && data.badgeHidden) {
-        return []; 
-      }
+      if (data && data.badgeHidden) return []; // Respect user settings
 
-      // 2. Determine which date to calculate from
-      // Use the custom date if they reset/changed it, otherwise use Trello's default last activity
       const targetDate = (data && data.customStartDate) ? data.customStartDate : card.dateLastActivity;
-      
-      // 3. Perform the actual math
       const daysAge = calculateDays(targetDate);
 
-      // 4. Render the functional badge
+      // Threshold Logic (0-2: Hidden, 3-5: Yellow, 6-10: Orange, 10+: Red)
+      if (daysAge <= 2) return []; 
+
+      let badgeColor = 'light-gray';
+      if (daysAge >= 3 && daysAge <= 5) badgeColor = 'yellow';
+      if (daysAge >= 6 && daysAge <= 10) badgeColor = 'orange';
+      if (daysAge > 10) badgeColor = 'red';
+
       return [{
-        title: 'Last updated',
-        text: `${daysAge} Days`,
-        callback: function (t) {
-          return showSettingsMenu(t);
-        }
+        text: `Inactive: ${daysAge}d`, // This acts as the text and the tooltip
+        color: badgeColor
       }];
     });
+  },
+
+  // 2. CARD DETAIL BADGES (Inside the card, clicks to open settings)
+  'card-detail-badges': function (t, opts) {
+    return Promise.all([
+      t.card('dateLastActivity'),
+      t.get('card', 'shared')
+    ]).then(function([card, data]) {
+      
+      if (data && data.badgeHidden) return []; 
+
+      const targetDate = (data && data.customStartDate) ? data.customStartDate : card.dateLastActivity;
+      const daysAge = calculateDays(targetDate);
+
+      return [{
+        title: 'Aging Status',
+        text: `${daysAge} Days Inactive`,
+        callback: function (t) { return showSettingsMenu(t); }
+      }];
+    });
+  },
+
+  // 3. VISUAL AGING ENGINE (Loads the visual iframe inside the card)
+  'card-back-section': function(t, options) {
+    return {
+      title: 'Card Health',
+      icon: 'https://cdn.hyperdev.com/us-east-1%3A3d311d30-503d-4299-9432-03d872f2d924%2Fgray-dot.svg',
+      content: {
+        type: 'iframe',
+        url: t.signUrl('./status.html'),
+        height: 120 // Height for the health bar
+      }
+    };
   }
 });

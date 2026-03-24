@@ -2,21 +2,96 @@
 <html>
 <head>
   <script src="https://p.trellocdn.com/power-up.min.js"></script>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; overflow: hidden; margin: 0; padding: 10px; transition: all 0.5s ease; }
+    
+    .status-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .status-header h3 { margin: 0; font-size: 16px; color: #172b4d; }
+    .status-header span { font-weight: bold; font-size: 14px; }
+
+    /* The Health Bar */
+    .bar-bg { width: 100%; height: 16px; background: #ebecf0; border-radius: 8px; overflow: hidden; position: relative; }
+    .bar-fill { height: 100%; width: 100%; transition: width 1s ease-in-out, background-color 0.5s; border-radius: 8px; }
+
+    /* Color Thresholds */
+    .fresh { background-color: #61bd4f; color: #61bd4f; }
+    .warning { background-color: #f2d600; color: #f2d600; }
+    .stale { background-color: #ff9f1a; color: #ff9f1a; }
+    .dead { background-color: #eb5a46; color: #eb5a46; }
+
+    /* The "Cracked / Faded" Mode */
+    body.faded-mode { opacity: 0.6; filter: grayscale(80%); }
+    .cracked-overlay { display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: url('data:image/svg+xml;utf8,<svg width="100" height="100" xmlns="http://www.w3.org/2000/svg"><path d="M10,0 L20,30 L5,50 L30,80 L20,100" stroke="rgba(0,0,0,0.2)" stroke-width="2" fill="none"/></svg>'); pointer-events: none; }
+    body.faded-mode .cracked-overlay { display: block; }
+  </style>
 </head>
 <body>
 
-<h3 id="text">Loading...</h3>
+  <div class="status-header">
+    <h3 id="status-title">Loading Health...</h3>
+    <span id="days-count">--</span>
+  </div>
+  
+  <div class="bar-bg">
+    <div id="health-bar" class="bar-fill fresh"></div>
+    <div class="cracked-overlay"></div>
+  </div>
+  
+  <p id="desc" style="margin-top: 8px; font-size: 12px; color: #5e6c84;">Calculating...</p>
 
-<script>
-var t = window.TrelloPowerUp.iframe();
+  <script>
+    var t = window.TrelloPowerUp.iframe();
 
-t.render(function() {
-  t.card('dateLastActivity').then(function(card) {
-    const days = Math.floor((new Date() - new Date(card.dateLastActivity)) / 86400000);
-    document.getElementById('text').innerText = `Inactive for ${days} days`;
-  });
-});
-</script>
+    t.render(function() {
+      Promise.all([
+        t.card('dateLastActivity'),
+        t.get('card', 'shared')
+      ]).then(function([card, data]) {
+        
+        // 1. Calculate precise age
+        const targetDate = (data && data.customStartDate) ? data.customStartDate : card.dateLastActivity;
+        const daysAge = Math.floor((new Date() - new Date(targetDate)) / 86400000);
+        
+        // 2. Grab DOM elements
+        const title = document.getElementById('status-title');
+        const count = document.getElementById('days-count');
+        const bar = document.getElementById('health-bar');
+        const desc = document.getElementById('desc');
+        const body = document.body;
 
+        count.innerText = `${daysAge} Days`;
+
+        // 3. Apply Thresholds & Visual Styling
+        bar.className = 'bar-fill'; // Reset classes
+        body.className = ''; 
+
+        if (daysAge <= 2) {
+          title.innerText = "Fresh & Active";
+          bar.classList.add('fresh');
+          bar.style.width = '100%';
+          desc.innerText = "This card has been active recently. Keep it up!";
+        } else if (daysAge <= 5) {
+          title.innerText = "Slowing Down";
+          bar.classList.add('warning');
+          bar.style.width = '60%';
+          count.classList.add('warning');
+          desc.innerText = "Activity is slowing down. Needs attention soon.";
+        } else if (daysAge <= 10) {
+          title.innerText = "Stale";
+          bar.classList.add('stale');
+          bar.style.width = '30%';
+          count.classList.add('stale');
+          desc.innerText = "This card is stagnant. Time to move it forward.";
+        } else {
+          title.innerText = "Dead / Inactive";
+          bar.classList.add('dead');
+          bar.style.width = '5%';
+          count.classList.add('dead');
+          desc.innerText = "Severe inactivity detected.";
+          body.classList.add('faded-mode'); // Triggers the cracked/faded visual engine
+        }
+      });
+    });
+  </script>
 </body>
 </html>
