@@ -81,5 +81,36 @@ window.TrelloPowerUp.initialize({
         }
       }];
     });
+  },
+  'show-settings': function(t, options) {
+    return t.popup({
+      title: 'Stale Card Automations',
+      url: './settings.html',
+      height: 200
+    });
+  },
+
+  // 2. Add the Board Button (Only shows if feature is enabled)
+  'board-buttons': function(t, options) {
+    // Check if the team enabled the feature in settings
+    return t.get('board', 'shared', 'sweepEnabled', false).then(function(isEnabled) {
+      if (!isEnabled) return []; // Hide button if disabled
+
+      return [{
+        icon: {
+          dark: 'https://cdn.hyperdev.com/us-east-1%3A3d311d30-503d-4299-9432-03d872f2d924%2Fgray-dot.svg',
+          light: 'https://cdn.hyperdev.com/us-east-1%3A3d311d30-503d-4299-9432-03d872f2d924%2Fgray-dot.svg'
+        },
+        text: '🧹 Sweep Stale Cards',
+        callback: function(t) {
+          // Opens a modal to execute the moving script
+          return t.modal({
+            title: 'Sweeping Stale Cards...',
+            url: './sweep.html',
+            height: 300
+          });
+        }
+      }];
+    });
   }
 });

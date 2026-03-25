@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <link rel="stylesheet" href="https://p.trellocdn.com/power-up.css">
+  <script src="https://p.trellocdn.com/power-up.min.js"></script>
+  <style>
+    body { padding: 20px; text-align: center; font-family: sans-serif; }
+    #status { font-size: 16px; margin-bottom: 20px; }
+  </style>
+</head>
+<body>
+  <h2>Card Sweeper</h2>
+  <div id="status">Analyzing board for stale cards...</div>
+  
+  <script>
+    var t = window.TrelloPowerUp.iframe();
+
+    t.render(function() {
+      // 1. Get the settings and the board's lists/cards
+      Promise.all([
+        t.get('board', 'shared'),
+        t.lists('all'),
+        t.cards('id', 'name', 'dateLastActivity', 'idList')
+      ]).then(function([settings, lists, cards]) {
+        
+        const threshold = settings.sweepThreshold || 30;
+        const now = new Date();
+        
+        // 2. Find all cards older than the threshold
+        const staleCards = cards.filter(card => {
+          const daysOld = Math.floor((now - new Date(card.dateLastActivity)) / 86400000);
+          return daysOld >= threshold;
+        });
+
+        document.getElementById('status').innerHTML = `Found <strong>${staleCards.length}</strong> cards inactive for ${threshold}+ days.`;
+
+        if (staleCards.length > 0) {
+          // NOTE: To physically move these cards and create labels, 
+          // we must initiate an OAuth flow to get a Trello Token.
+          document.getElementById('status').innerHTML += `<br><br><em>(REST API Authorization required to move cards)</em>`;
+        } else {
+          setTimeout(() => t.closeModal(), 3000);
+        }
+      });
+    });
+  </script>
+</body>
+</html>
