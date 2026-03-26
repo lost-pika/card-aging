@@ -1,30 +1,6 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <link rel="stylesheet" href="https://p.trellocdn.com/power-up.css">
-  <script src="https://p.trellocdn.com/power-up.min.js"></script>
-  <style>
-    /* Dark Mode Fixes */
-    :root { --text-main: #172b4d; }
-    @media (prefers-color-scheme: dark) {
-      :root { --text-main: #b6c2cf; }
-      body { background-color: #323940; }
-    }
-    
-    body { padding: 20px; text-align: center; font-family: -apple-system, sans-serif; color: var(--text-main); }
-    #status { font-size: 16px; margin-bottom: 20px; }
-    .btn-container { margin-top: 20px; }
-  </style>
-</head>
-<body>
-  <h2>🧹 Card Sweeper</h2>
-  <div id="status">Analyzing board...</div>
-  <div class="btn-container" id="action-area"></div>
-
-  <script>
+<script>
     // 🚨 PASTE YOUR API KEY HERE BETWEEN THE QUOTES
     const API_KEY = '5b2558826e55786ecfd7f2a39146e731';
-    
 
     var t = window.TrelloPowerUp.iframe({
       appKey: API_KEY,
@@ -38,7 +14,7 @@
       Promise.all([
         t.get('board', 'shared'),
         t.lists('all'),
-        t.cards('id', 'name', 'dateLastActivity', 'idList')
+        t.cards('id', 'name', 'idList') // Removed dateLastActivity, we only need ID now
       ]).then(function([settings, lists, cards]) {
 
         boardLists = lists;
@@ -46,10 +22,17 @@
         const now = new Date();
 
         foundStaleCards = cards.filter(card => {
+          // 1. Skip if already in the Stale Cards list
           const list = lists.find(l => l.id === card.idList);
           if (list && list.name.toLowerCase() === 'stale cards') return false;
 
-          const daysOld = Math.floor((now - new Date(card.dateLastActivity)) / 86400000);
+          // 2. SECRET TRELLO HACK: Extract Creation Date from the Card ID
+          const creationTimestamp = parseInt(card.id.substring(0, 8), 16) * 1000;
+          const creationDate = new Date(creationTimestamp);
+          
+          // 3. Calculate age based on Creation Date
+          const daysOld = Math.floor((now - creationDate) / 86400000);
+          
           return daysOld >= threshold;
         });
 
@@ -58,13 +41,13 @@
 
         // IF NO CARDS FOUND - DO NOT AUTO CLOSE
         if (foundStaleCards.length === 0) {
-          statusEl.innerHTML = `✅ <strong>Board is clean!</strong><br><br>No cards outside the 'Stale Cards' list have been inactive for ${threshold}+ days.`;
+          statusEl.innerHTML = `✅ <strong>Board is clean!</strong><br><br>No cards outside the 'Stale Cards' list were created ${threshold}+ days ago.`;
           actionEl.innerHTML = `<button id="closeBtn" class="mod-primary">Close</button>`;
           document.getElementById('closeBtn').addEventListener('click', () => t.closeModal());
           return;
         }
 
-        statusEl.innerHTML = `Found <strong>${foundStaleCards.length}</strong> cards inactive for ${threshold}+ days.`;
+        statusEl.innerHTML = `Found <strong>${foundStaleCards.length}</strong> cards created ${threshold}+ days ago.`;
 
         t.getRestApi().isAuthorized().then(function(isAuth) {
           if (!isAuth) {
@@ -117,7 +100,7 @@
           await fetch(`https://api.trello.com/1/cards/${card.id}?idList=${staleListId}&${authStr}`, { method: 'PUT' });
         }
 
-        // FINISHED - DO NOT AUTO CLOSE
+        // FINISHED
         statusEl.innerHTML = `✅ <strong>Successfully swept ${foundStaleCards.length} cards!</strong><br>Check your 'Stale Cards' list.`;
         actionEl.innerHTML = `<button id="closeBtn" class="mod-primary">Done</button>`;
         document.getElementById('closeBtn').addEventListener('click', () => t.closeModal());
@@ -128,7 +111,3 @@
       }
     }
   </script>
-</body>
-</html>
-
-
