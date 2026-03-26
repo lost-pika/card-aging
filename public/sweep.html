@@ -41,11 +41,18 @@
 
         boardLists = lists;
         const threshold = settings.sweepThreshold || 30;
+        // Check if setting exists, default to true if it doesn't
+        const ignoreStarter = settings.ignoreStarter !== false; 
         const now = new Date();
 
         foundStaleCards = cards.filter(card => {
           const list = lists.find(l => l.id === card.idList);
+          
+          // 1. Skip if already in the Stale Cards list
           if (list && list.name.toLowerCase() === 'stale cards') return false;
+
+          // 2. NEW LOGIC: Skip if in "Trello Starter Guide" and toggle is checked
+          if (ignoreStarter && list && list.name.toLowerCase() === 'trello starter guide') return false;
 
           // Extract Creation Date from the Card ID
           const creationTimestamp = parseInt(card.id.substring(0, 8), 16) * 1000;
@@ -59,13 +66,13 @@
         const actionEl = document.getElementById('action-area');
 
         if (foundStaleCards.length === 0) {
-          statusEl.innerHTML = `✅ <strong>Board is clean!</strong><br><br>No cards outside the 'Stale Cards' list were created ${threshold}+ days ago.`;
+          statusEl.innerHTML = `✅ <strong>Board is clean!</strong><br><br>No eligible cards were created ${threshold}+ days ago.`;
           actionEl.innerHTML = `<button id="closeBtn" class="mod-primary">Close</button>`;
           document.getElementById('closeBtn').addEventListener('click', () => t.closeModal());
           return;
         }
 
-        statusEl.innerHTML = `Found <strong>${foundStaleCards.length}</strong> cards created ${threshold}+ days ago.`;
+        statusEl.innerHTML = `Found <strong>${foundStaleCards.length}</strong> eligible cards created ${threshold}+ days ago.`;
 
         t.getRestApi().isAuthorized().then(function(isAuth) {
           if (!isAuth) {

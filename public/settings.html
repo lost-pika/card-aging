@@ -6,7 +6,7 @@
   <style>
     body { padding: 12px; font-family: -apple-system, sans-serif; }
     .row { margin-bottom: 15px; }
-    /* Dark mode support for settings popup */
+    /* Dark mode support */
     @media (prefers-color-scheme: dark) {
       body { color: #b6c2cf; background-color: #282e33; }
       input[type="number"] { background: #22272b; color: white; border: 1px solid #738496; }
@@ -15,9 +15,10 @@
 </head>
 <body>
   <div class="row">
-    <label>
-      <input type="checkbox" id="enableToggle" /> Enable Auto-Sweep to Stale List
-    </label>
+    <label><input type="checkbox" id="enableToggle" /> Enable Auto-Sweep to Stale List</label>
+  </div>
+  <div class="row">
+    <label><input type="checkbox" id="ignoreStarterToggle" checked /> Ignore "Trello Starter Guide" list</label>
   </div>
   <div class="row">
     <label for="daysInput">Days Inactive before sweeping:</label>
@@ -29,39 +30,36 @@
     // 🚨 PASTE YOUR API KEY HERE BETWEEN THE QUOTES
     const API_KEY = '5b2558826e55786ecfd7f2a39146e731';
 
-    // We must initialize with the appKey so we can use the REST API to move cards
     var t = window.TrelloPowerUp.iframe({
       appKey: API_KEY,
       appName: 'Card Aging Power-Up'
     });
 
-
-    // 1. Load existing settings when opened
+    // 1. Load existing settings
     t.render(function() {
       t.get('board', 'shared').then(function(data) {
         if (data) {
           document.getElementById('enableToggle').checked = data.sweepEnabled || false;
+          // Default to true if the setting doesn't exist yet
+          document.getElementById('ignoreStarterToggle').checked = data.ignoreStarter !== false; 
           document.getElementById('daysInput').value = data.sweepThreshold || 30;
         }
       });
     });
 
-    // 2. The "Undo" Engine: Moves cards back to their original lists
+    // 2. Restore Cards Logic (Kept exactly the same)
     async function restoreCards() {
       try {
-        // Ensure we are authorized to move cards
         const isAuth = await t.getRestApi().isAuthorized();
         if (!isAuth) return; 
 
         const token = await t.getRestApi().getToken();
         const authStr = `key=${API_KEY}&token=${token}`;
 
-        // Get all lists and find the Stale Cards list
         const lists = await t.lists('all');
         const staleList = lists.find(l => l.name.toLowerCase() === 'stale cards');
-        if (!staleList) return; // No stale list exists, nothing to do
+        if (!staleList) return; 
 
-        // Get all cards and filter for the ones currently in the Stale List
         const allCards = await t.cards('id', 'idList', 'labels');
         const cardsToRestore = allCards.filter(c => c.idList === staleList.id);
 
@@ -69,7 +67,6 @@
           let targetListId = null;
           let labelToRemoveId = null;
 
-          // Look at the card's labels to figure out where it came from
           for (const label of card.labels) {
             const matchedList = lists.find(l => l.name === label.name);
             if (matchedList) {
@@ -80,9 +77,7 @@
           }
 
           if (targetListId) {
-            // Move card back to its original list
             await fetch(`https://api.trello.com/1/cards/${card.id}?idList=${targetListId}&${authStr}`, { method: 'PUT' });
-            // Remove the gray label
             await fetch(`https://api.trello.com/1/cards/${card.id}/idLabels/${labelToRemoveId}?${authStr}`, { method: 'DELETE' });
           }
         }
@@ -91,32 +86,30 @@
       }
     }
 
-    // 3. Handle the Save Button Click
+    // 3. Save Settings
     document.getElementById('saveBtn').addEventListener('click', async function() {
       const btn = document.getElementById('saveBtn');
       btn.textContent = "Saving...";
       btn.disabled = true;
 
       const isEnabled = document.getElementById('enableToggle').checked;
+      const ignoreStarter = document.getElementById('ignoreStarterToggle').checked;
       const days = parseInt(document.getElementById('daysInput').value, 10) || 30;
 
-      // Check if the user is DISABLING the feature right now
       const currentData = await t.get('board', 'shared');
       const wasEnabled = currentData ? currentData.sweepEnabled : false;
 
-      // If it was turned ON, and they just turned it OFF...
       if (wasEnabled && !isEnabled) {
-        btn.textContent = "Restoring Cards..."; // Update button text
-        await restoreCards(); // Trigger the undo function!
+        btn.textContent = "Restoring Cards..."; 
+        await restoreCards(); 
       }
 
-      // Save the new settings
       await t.set('board', 'shared', {
         'sweepEnabled': isEnabled,
+        'ignoreStarter': ignoreStarter, // Save the new setting!
         'sweepThreshold': days
       });
 
-      // Show visual success
       btn.textContent = "✔ Saved!";
       btn.style.backgroundColor = "#61bd4f";
       btn.style.color = "white";
