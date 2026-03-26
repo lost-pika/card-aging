@@ -5,7 +5,7 @@
   <script src="https://p.trellocdn.com/power-up.min.js"></script>
   <style>
     body { padding: 12px; font-family: -apple-system, sans-serif; }
-    .row { margin-bottom: 15px; }
+    .row { margin-bottom: 12px; }
     /* Dark mode support */
     @media (prefers-color-scheme: dark) {
       body { color: #b6c2cf; background-color: #282e33; }
@@ -19,6 +19,9 @@
   </div>
   <div class="row">
     <label><input type="checkbox" id="ignoreStarterToggle" checked /> Ignore "Trello Starter Guide" list</label>
+  </div>
+  <div class="row">
+    <label><input type="checkbox" id="hideBadgesToggle" /> Hide Age Badges (Front & Back)</label>
   </div>
   <div class="row">
     <label for="daysInput">Days Inactive before sweeping:</label>
@@ -35,19 +38,19 @@
       appName: 'Card Aging Power-Up'
     });
 
-    // 1. Load existing settings
+    // 1. Load existing settings reliably
     t.render(function() {
       t.get('board', 'shared').then(function(data) {
         if (data) {
           document.getElementById('enableToggle').checked = data.sweepEnabled || false;
-          // Default to true if the setting doesn't exist yet
           document.getElementById('ignoreStarterToggle').checked = data.ignoreStarter !== false; 
+          document.getElementById('hideBadgesToggle').checked = data.hideBadges || false; // Load new setting
           document.getElementById('daysInput').value = data.sweepThreshold || 30;
         }
       });
     });
 
-    // 2. Restore Cards Logic (Kept exactly the same)
+    // Restore Cards Logic
     async function restoreCards() {
       try {
         const isAuth = await t.getRestApi().isAuthorized();
@@ -81,12 +84,10 @@
             await fetch(`https://api.trello.com/1/cards/${card.id}/idLabels/${labelToRemoveId}?${authStr}`, { method: 'DELETE' });
           }
         }
-      } catch (e) {
-        console.error("Failed to restore cards:", e);
-      }
+      } catch (e) { console.error("Restore failed:", e); }
     }
 
-    // 3. Save Settings
+    // 2. Save Settings (Fixed the overwrite bug!)
     document.getElementById('saveBtn').addEventListener('click', async function() {
       const btn = document.getElementById('saveBtn');
       btn.textContent = "Saving...";
@@ -94,19 +95,24 @@
 
       const isEnabled = document.getElementById('enableToggle').checked;
       const ignoreStarter = document.getElementById('ignoreStarterToggle').checked;
+      const hideBadges = document.getElementById('hideBadgesToggle').checked;
       const days = parseInt(document.getElementById('daysInput').value, 10) || 30;
 
-      const currentData = await t.get('board', 'shared');
-      const wasEnabled = currentData ? currentData.sweepEnabled : false;
+      // Fetch the most recent data to ensure we don't overwrite blindly
+      const currentData = await t.get('board', 'shared') || {};
+      const wasEnabled = currentData.sweepEnabled || false;
 
       if (wasEnabled && !isEnabled) {
         btn.textContent = "Restoring Cards..."; 
         await restoreCards(); 
       }
 
+      // Explicitly save the merged data to fix the update bug
       await t.set('board', 'shared', {
+        ...currentData,
         'sweepEnabled': isEnabled,
-        'ignoreStarter': ignoreStarter, // Save the new setting!
+        'ignoreStarter': ignoreStarter,
+        'hideBadges': hideBadges, // Save the new setting
         'sweepThreshold': days
       });
 
@@ -114,9 +120,7 @@
       btn.style.backgroundColor = "#61bd4f";
       btn.style.color = "white";
 
-      setTimeout(function() {
-        try { t.closePopup(); } catch(e) {}
-      }, 1500);
+      setTimeout(function() { try { t.closePopup(); } catch(e) {} }, 1000);
     });
   </script>
 </body>
