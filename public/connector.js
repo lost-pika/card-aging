@@ -14,6 +14,7 @@ function calculateAgeFromId(cardId, customDateString) {
   return Math.floor(Math.abs(now - targetDate) / (1000 * 60 * 60 * 24));
 }
 
+
 const showSettingsMenu = function(t) {
   return t.popup({
     title: 'Card Aging Settings',
